@@ -1,6 +1,6 @@
 <?php
 
-header('Content-Type: text/plain');
+header('Content-Type: text/plain; charset=UTF-8');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST');
 
@@ -386,7 +386,7 @@ class GnuCash {
     public function __construct($sHostname, $sDbName, $sUsername, $sPassword) {
         $this->sDbName = $sDbName;
         try {
-            $this->con = new PDO("mysql:host=$sHostname;dbname=$sDbName", $sUsername, $sPassword);
+            $this->con = new PDO("mysql:host=$sHostname;dbname=$sDbName", $sUsername, $sPassword, [PDO::MYSQL_ATTR_INIT_COMMAND => 'SET NAMES utf8']);
             $this->con->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         } catch(PDOException $e) {
             $this->eException = $e;
