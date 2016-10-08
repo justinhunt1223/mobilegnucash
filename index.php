@@ -38,22 +38,34 @@ class Index {
             $this->done();
         }
 
-        $sUsername = $this->aData['login']['username'];
-        if (!$sUsername) { $sUsername = $this->sUsername; }
+        if (isset($this->aData['login']['username'])) {
+            $sUsername = $this->aData['login']['username'];
+        }
+        else {
+            $sUsername = $this->sUsername;
+        }
 
-        $sPassword = $this->aData['login']['password'];
-        if (!$sPassword) { $sPassword = $this->sPassword; }
+        if (isset($this->aData['login']['password'])) {
+            $sPassword = $this->aData['login']['password'];
+        }
+        else {
+            $sPassword = $this->sPassword;
+        }
 
-        $sDbName = $this->aData['login']['database'];
-        if (!$sDbName) { $sDbName = $this->sDatabase; }
+        if (isset($this->aData['login']['database'])) {
+            $sDbName = $this->aData['login']['database'];
+        }
+        else {
+            $sDbName = $this->sDatabase;
+        }
 
-        $sDatabaseServer = $this->aData['login']['database_server'];
-        if (!$sDatabaseServer) {
-            if (!$this->sDatabaseServer) {
-                $sDatabaseServer = $this->sDatabaseServer;
-            } else {
-                $sDatabaseServer = '127.0.0.1';
-            }
+        if (isset($this->aData['login']['database_server'])) {
+            $sDatabaseServer = $this->aData['login']['database_server'];
+        }
+        else if (!$this->sDatabaseServer) {
+            $sDatabaseServer = $this->sDatabaseServer;
+        } else {
+            $sDatabaseServer = '127.0.0.1';
         }
 
         $this->cGnuCash = new GnuCash($sDatabaseServer, $sDbName, $sUsername, $sPassword);
