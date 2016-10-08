@@ -38,37 +38,27 @@ class Index {
             $this->done();
         }
 
-        if (empty($this->aData['login']['username'])) {
-            $sUsername = $this->sUsername;
-        }
-        else {
-            $sUsername = $this->aData['login']['username'];
+        if (!$this->sUsername AND !empty($this->aData['login']['username'])) {
+            $this->sUsername = $this->aData['login']['username'];
         }
 
-        if (empty($this->aData['login']['password'])) {
-            $sPassword = $this->sPassword;
-        }
-        else {
-            $sPassword = $this->aData['login']['password'];
+        if (!$this->sPassword AND !empty($this->aData['login']['password'])) {
+            $this->sPassword = $this->aData['login']['password'];
         }
 
-        if (empty($this->aData['login']['database'])) {
-            $sDbName = $this->sDatabase;
-        }
-        else {
-            $sDbName = $this->aData['login']['database'];
+        if (!$this->sDatabase AND !empty($this->aData['login']['database'])) {
+            $this->sDatabase = $this->aData['login']['database'];
         }
 
-        if (!empty($this->aData['login']['database_server'])) {
-            $sDatabaseServer = $this->aData['login']['database_server'];
-        }
-        else if (!$this->sDatabaseServer) {
-            $sDatabaseServer = $this->sDatabaseServer;
-        } else {
-            $sDatabaseServer = '127.0.0.1';
+        if (!$this->sDatabaseServer) {
+            if (!empty($this->aData['login']['database_server'])) {
+                $this->sDatabaseServer = $this->aData['login']['database_server'];
+            } else {
+                $this->sDatabaseServer = '127.0.0.1';
+            }
         }
 
-        $this->cGnuCash = new GnuCash($sDatabaseServer, $sDbName, $sUsername, $sPassword);
+        $this->cGnuCash = new GnuCash($this->sDatabaseServer, $this->sDatabase, $this->sUsername, $this->sPassword);
 
         if ($this->cGnuCash->getErrorCode()) {
             $this->aReturn['message'] = "Database connection failed.<br /><b>{$this->cGnuCash->getErrorMessage()}</b>";
@@ -81,10 +71,10 @@ class Index {
                 $this->aReturn['database'] = $this->sDatabase;
                 $this->done();
             }
-            if (!$sDbName) {
+            if (!$this->sDatabase) {
                 $this->aReturn['message'] = 'No database specified.';
             } else {
-                $this->aReturn['message'] = "No accounts found, double check the database: $sDbName";
+                $this->aReturn['message'] = "No accounts found, double check the database: {$this->sDatabase}";
             }
             $this->done();
         }
