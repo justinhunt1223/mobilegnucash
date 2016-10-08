@@ -32,7 +32,7 @@ class Index {
             $this->aReturn['return'] = 1;
             $this->aReturn['hardcoded_credentials'] = (($this->sUsername and $this->sPassword) ? 1 : 0);
             $this->aReturn['username'] = $this->sUsername;
-            $this->aReturn['password'] = $this->sPassword;
+            $this->aReturn['password'] = $this->sPassword ? "yes" : "no";
             $this->aReturn['database_server'] = $this->sDatabaseServer;
             $this->aReturn['database'] = $this->sDatabase;
             $this->done();
