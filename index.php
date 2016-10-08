@@ -38,28 +38,28 @@ class Index {
             $this->done();
         }
 
-        if (isset($this->aData['login']['username'])) {
-            $sUsername = $this->aData['login']['username'];
-        }
-        else {
+        if (empty($this->aData['login']['username'])) {
             $sUsername = $this->sUsername;
         }
-
-        if (isset($this->aData['login']['password'])) {
-            $sPassword = $this->aData['login']['password'];
-        }
         else {
+            $sUsername = $this->aData['login']['username'];
+        }
+
+        if (empty($this->aData['login']['password'])) {
             $sPassword = $this->sPassword;
         }
-
-        if (isset($this->aData['login']['database'])) {
-            $sDbName = $this->aData['login']['database'];
-        }
         else {
+            $sPassword = $this->aData['login']['password'];
+        }
+
+        if (empty($this->aData['login']['database'])) {
             $sDbName = $this->sDatabase;
         }
+        else {
+            $sDbName = $this->aData['login']['database'];
+        }
 
-        if (isset($this->aData['login']['database_server'])) {
+        if (!empty($this->aData['login']['database_server'])) {
             $sDatabaseServer = $this->aData['login']['database_server'];
         }
         else if (!$this->sDatabaseServer) {
