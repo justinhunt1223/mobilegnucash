@@ -619,11 +619,11 @@ class GnuCash {
     }
 
     public function getAllAccounts() {
-        return $this->runQuery("SELECT * FROM `accounts`;");
+        return $this->runQuery("SELECT * FROM `accounts` ORDER BY code, name");
     }
 
     public function getChildAccounts($sParentGUID) {
-        return $this->runQuery("SELECT * FROM `accounts` WHERE `parent_guid` = :parent_guid;",
+        return $this->runQuery("SELECT * FROM `accounts` WHERE `parent_guid` = :parent_guid ORDER BY code, name",
                                array(':parent_guid' => $sParentGUID));
     }
 
