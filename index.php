@@ -84,16 +84,14 @@ class Index {
             $this->aReturn['message'] = "Database connection failed.<br /><b>{$this->cGnuCash->getErrorMessage()}</b>";
             $this->aReturn['error_code'] = $this->cGnuCash->getErrorCode();
             $this->done();
-        } else if (!$this->cGnuCash->getAccounts() or isset($this->aData['test_credentials'])) {
-            if (isset($this->aData['test_credentials'])) {
-                $this->aReturn['return'] = 1;
-                $this->aReturn['databases'] = $this->cGnuCash->getDatabases();
-                $this->aReturn['database'] = $this->sDatabase;
-                $this->done();
-            }
-            if (!$this->sDatabase) {
-                $this->aReturn['message'] = 'No database specified.';
-            } else {
+        } else  if (isset($this->aData['test_credentials'])) {
+            $this->aReturn['return'] = 1;
+            $this->aReturn['databases'] = $this->cGnuCash->getDatabases();
+            $this->aReturn['database'] = $this->sDatabase;
+            $this->done();
+        } else if (!$this->cGnuCash->getAccounts()) {
+            $this->aReturn['message'] = 'No database specified.';
+            if ($this->sDatabase) {
                 $this->aReturn['message'] = "No accounts found, double check the database: {$this->sDatabase}";
             }
             $this->done();
