@@ -239,6 +239,7 @@ class Index {
     private function appGetAccountTransactions() {
         $sAccountGUID = $this->aData['guid'];
         $this->aReturn['transactions'] = array();
+        $rstates = array('c' => true, 'y' => true);
 
         $aTransactions = $this->cGnuCash->getAccountTransactions($sAccountGUID);
         if ($aTransactions) {
@@ -252,7 +253,7 @@ class Index {
                         'amount' => number_format(($aTransaction['value_num'] / $aTransaction['value_denom']), 2),
                         'memo' => $aTransaction['memo'],
                         'date' => date('m-d-y', strtotime($aDate[0])),
-                        'reconciled' => $aTransaction['reconcile_state'] == 'c'
+                        'reconciled' => isset($rstates[$aTransaction['reconcile_state']]),
                     );
             }
         } else {
@@ -284,11 +285,10 @@ class Index {
             $aTransactions = $cPage->cGnuCash->getAccountTransactions($aAccount['guid']);
             $fTotal = 0;
             $bAllReconciled = true;
+            $rstates = array('c' => true, 'y' => true);
             foreach ($aTransactions as $aTransaction) {
                 $fTotal += $aTransaction['value_num'] / $aTransaction['value_denom'];
-                if ($aTransaction['reconcile_state'] != 'c') {
-                    $bAllReconciled = false;
-                }
+                $bAllReconciled = ($bAllReconciled and isset($rstates[$aTransaction['reconcile_state']]));
             }
             $aNewAccount = array(
                 'name' => $aAccount['name'],
