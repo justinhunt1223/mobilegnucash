@@ -22,17 +22,21 @@ class Index {
     public $aAccountTypes = array('INCOME', 'EXPENSE', 'BANK', 'ASSET', 'EQUITY', 'CREDIT', 'LIABILITY', 'RECEIVABLE', 'CASH');
 
     public function __construct() {
-        if (!isset($_POST['data'])) {
-            $this->done();
+        if(isset($_GET['func'])) {
+            $this->aData = array('func' => $_GET['func']);
+        } else {
+            if (!isset($_POST['data'])) {
+                $this->done();
+            }
+            $sData = base64_decode($_POST['data']);
+            $this->aData = json_decode($sData, true);
         }
-        $sData = base64_decode($_POST['data']);
-        $this->aData = json_decode($sData, true);
 
         if (isset($this->aData['test_connection']) and $this->aData) {
             $this->aReturn['return'] = 1;
             $this->aReturn['hardcoded_credentials'] = (($this->sUsername and $this->sPassword) ? 1 : 0);
             $this->aReturn['username'] = $this->sUsername;
-            $this->aReturn['password'] = $this->sPassword ? "yes" : "no";
+            $this->aReturn['password'] = $this->sPassword ? "yes" : "";
             $this->aReturn['database_server'] = $this->sDatabaseServer;
             $this->aReturn['database'] = $this->sDatabase;
             $this->done();
