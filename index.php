@@ -22,8 +22,24 @@ class Index {
     public $aAccountTypes = array('INCOME', 'EXPENSE', 'BANK', 'ASSET', 'EQUITY', 'CREDIT', 'LIABILITY', 'RECEIVABLE', 'CASH');
 
     public function __construct() {
-        if(isset($_GET['func'])) {
-            $this->aData = array('func' => $_GET['func']);
+        if (isset($_GET['func'])) {
+            $this->aData = array(
+                'func' => $_GET['func'],
+                'login' => array(
+                    'username' => $_GET['user'] ?? "",
+                    'password' => $_GET['pass'] ?? "",
+                    'database' => $_GET['db'] ?? "",
+                    'database_server' => $_GET['server'] ?? "localhost",
+                ),
+            );
+            if ($_GET['func'] == 'test_connection')
+            {
+                $this->aData['test_connection'] = true;
+            }
+            if ($_GET['func'] == 'test_credentials')
+            {
+                $this->aData['test_credentials'] = true;
+            }
         } else {
             if (!isset($_POST['data'])) {
                 $this->done();
