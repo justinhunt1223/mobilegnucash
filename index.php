@@ -26,10 +26,10 @@ class Index {
             $this->aData = array(
                 'func' => $_GET['func'],
                 'login' => array(
-                    'username' => $_GET['user'] ?? "",
-                    'password' => $_GET['pass'] ?? "",
-                    'database' => $_GET['db'] ?? "",
-                    'database_server' => $_GET['server'] ?? "localhost",
+                    'username' => isset($_GET['user']) ? $_GET['user'] : "",
+                    'password' => isset($_GET['pass']) ? $_GET['pass'] : "",
+                    'database' => isset($_GET['db']) ? $_GET['db'] : "",
+                    'database_server' => isset($_GET['server']) ? $_GET['server'] : "localhost",
                 ),
             );
             if ($_GET['func'] == 'test_connection')
