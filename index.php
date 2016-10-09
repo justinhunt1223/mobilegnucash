@@ -111,8 +111,7 @@ class Index {
         $this->aReturn['return']  = 1;
         $this->aReturn['accounts'] = array();
 
-        $aAccounts = $this->cGnuCash->getAccounts();
-        foreach ($aAccounts as $aAccount) {
+        foreach($this->cGnuCash->getSortedAccounts() as $aAccount) {
             $sPrefix = $aAccount['account_type'] . ': ';
             if (strpos($sPrefix, 'INCOME') !== false) {
                 $sPrefix = 'Income: ';
@@ -142,7 +141,7 @@ class Index {
                 'simple_name' => $aAccount['name'],
                 'count' => $aAccount['Count'],
                 'guid' => $aAccount['guid'],
-                'is_parent' => (count($this->cGnuCash->getChildAccounts($aAccount['guid'])) > 0) * 1
+                'is_parent' => FALSE,
             );
         }
     }
@@ -456,20 +455,48 @@ class GnuCash {
     }
 
     public function getAccountInfo($sAccountGUID) {
-        return $this->runQuery("SELECT * FROM `accounts` WHERE `guid` = :guid;",
+        return $this->runQuery("SELECT * FROM `accounts` WHERE `guid` = :guid ORDER BY code, name",
                                array(':guid' => $sAccountGUID), true);
     }
 
     public function getAccounts() {
-        return $this->runQuery("SELECT * FROM `accounts`
-                                LEFT OUTER JOIN
-                                    (
-                                        SELECT `account_guid`, COUNT(`account_guid`) AS Count
-                                        FROM `splits`
-                                        GROUP BY `account_guid`
-                                    ) counts
-                                    ON `counts`.`account_guid` = `accounts`.`guid`
-                                ORDER BY Count DESC;");
+        return $this->runQuery("SELECT accounts.*, COUNT(DISTINCT splits.guid) AS Count
+                                FROM accounts
+                                    LEFT OUTER JOIN splits ON (splits.account_guid = accounts.guid)
+                                GROUP BY accounts.guid");
+    }
+
+    public function getSortedAccounts() {
+        $unsorted_accounts = array_column($this->getAccounts(), NULL, 'guid');
+        $sorted_accounts = array();
+        foreach($this->getSortedAccountGUIDs() as $guid) {
+            if(isset($unsorted_accounts[$guid])) {
+                $sorted_accounts[] = $unsorted_accounts[$guid];
+            }
+        }
+        return $sorted_accounts;
+    }
+    public function getSortedAccountGUIDs() {
+        $guids = array();
+        foreach(array_column($this->runQuery("SELECT guid FROM accounts WHERE parent_guid IS NULL"), 'guid') as $root_guid) {
+            $child_guids = $this->childGUIDs($root_guid);
+            if($child_guids[0] != $root_guid) {
+                $guids = array_merge($guids, $child_guids);
+            }
+        }
+        return $guids;
+    }
+
+    public function childGUIDs($sParentGUID) {
+        $child_guids = array();
+        foreach(array_column($this->runQuery("SELECT guid FROM accounts WHERE parent_guid = :parent_guid ORDER BY code, name", array(':parent_guid' => $sParentGUID)), 'guid') as $childGUID) {
+            $child_guids = array_merge($child_guids, $this->childGUIDs($childGUID));
+        }
+        if($child_guids) {
+            return $child_guids;
+        } else {
+            return array($sParentGUID);
+        }
     }
 
     public function getAccountTransactions($sAccountGUID) {
