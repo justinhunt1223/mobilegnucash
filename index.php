@@ -598,15 +598,15 @@ class GnuCash {
         $this->runQuery("INSERT INTO `splits` (`guid`, `tx_guid`, `account_guid`, `memo`, `action`, `reconcile_state`, `reconcile_date`, `value_num`, `value_denom`, `quantity_num`, `quantity_denom`) VALUES (:guid, :tx_guid, :account_guid, :memo, :action, :reconcile_state, :reconcile_date, :value_num, :value_denom, :quantity_num, :quantity_denom);",
                         array(':guid' => $sSplitDebitGUID, ':tx_guid' => $sTransactionGUID, ':account_guid' => $sDebitGUID,
                               ':memo' => $sMemo, ':reconcile_state' => 'n', ':reconcile_date' => null, ':action' => '',
-                              ':value_num' => intval($fAmount * 100), ':value_denom' => 100,
-                              ':quantity_num' => intval($fAmount * 100), ':quantity_denom' => 100));
+                              ':value_num' => round($fAmount * 100), ':value_denom' => 100,
+                              ':quantity_num' => round($fAmount * 100), ':quantity_denom' => 100));
         $sDebitMessage = $this->eException->getMessage();
         $aSplitDebit = $this->getSplit($sSplitDebitGUID);
         $this->runQuery("INSERT INTO `splits` (`guid`, `tx_guid`, `account_guid`, `memo`, `action`, `reconcile_state`, `reconcile_date`, `value_num`, `value_denom`, `quantity_num`, `quantity_denom`) VALUES (:guid, :tx_guid, :account_guid, :memo, :action, :reconcile_state, :reconcile_date, :value_num, :value_denom, :quantity_num, :quantity_denom);",
                         array(':guid' => $sSplitCreditGUID, ':tx_guid' => $sTransactionGUID, ':account_guid' => $sCreditGUID,
                               ':memo' => '', ':reconcile_state' => 'n', ':reconcile_date' => null, ':action' => '',
-                              ':value_num' => -1 * intval($fAmount * 100), ':value_denom' => 100,
-                              ':quantity_num' => -1 * intval($fAmount * 100), ':quantity_denom' => 100));
+                              ':value_num' => -1 * round($fAmount * 100), ':value_denom' => 100,
+                              ':quantity_num' => -1 * round($fAmount * 100), ':quantity_denom' => 100));
         $sCreditMessage = $this->eException->getMessage();
         $aSplitCredit = $this->getSplit($sSplitCreditGUID);
 
