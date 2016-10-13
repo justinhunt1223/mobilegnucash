@@ -5,92 +5,112 @@ header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST');
 
 class Index {
-    
+
     // *** User variables ***
     private $sUsername = '';
     private $sPassword = '';
     private $sDatabase = '';
     private $sDatabaseServer = '';
     // ***
-    
+
     public $sVersion = '2.1.0';
-    
+
     public $cGnuCash;
     public $aReturn = array('return' => 0, 'message' => '', 'error_code' => 0);
     public $aData;
-    
+
     public $aAccountTypes = array('INCOME', 'EXPENSE', 'BANK', 'ASSET', 'EQUITY', 'CREDIT', 'LIABILITY', 'RECEIVABLE', 'CASH');
-    
+
     public function __construct() {
-        if (!isset($_POST['data'])) {
-            $this->done();
+        if (isset($_GET['func'])) {
+            $this->aData = array(
+                'func' => $_GET['func'],
+                'login' => array(
+                    'username' => isset($_GET['user']) ? $_GET['user'] : "",
+                    'password' => isset($_GET['pass']) ? $_GET['pass'] : "",
+                    'database' => isset($_GET['db']) ? $_GET['db'] : "",
+                    'database_server' => isset($_GET['server']) ? $_GET['server'] : "localhost",
+                ),
+            );
+            if ($_GET['func'] == 'test_connection')
+            {
+                $this->aData['test_connection'] = true;
+            }
+            if ($_GET['func'] == 'test_credentials')
+            {
+                $this->aData['test_credentials'] = true;
+            }
+        } else {
+            if (!isset($_POST['data'])) {
+                $this->done();
+            }
+            $sData = base64_decode($_POST['data']);
+            $this->aData = json_decode($sData, true);
         }
-        $sData = base64_decode($_POST['data']);
-        $this->aData = json_decode($sData, true);
-        
+
         if (isset($this->aData['test_connection']) and $this->aData) {
             $this->aReturn['return'] = 1;
             $this->aReturn['hardcoded_credentials'] = (($this->sUsername and $this->sPassword) ? 1 : 0);
             $this->aReturn['username'] = $this->sUsername;
-            $this->aReturn['password'] = $this->sPassword;
+            $this->aReturn['password'] = $this->sPassword ? "yes" : "";
             $this->aReturn['database_server'] = $this->sDatabaseServer;
             $this->aReturn['database'] = $this->sDatabase;
             $this->done();
         }
-        
-        $sUsername = $this->aData['login']['username'];
-        if (!$sUsername) { $sUsername = $this->sUsername; }
-        
-        $sPassword = $this->aData['login']['password'];
-        if (!$sPassword) { $sPassword = $this->sPassword; }
-        
-        $sDbName = $this->aData['login']['database'];
-        if (!$sDbName) { $sDbName = $this->sDatabase; }
-        
-        $sDatabaseServer = $this->aData['login']['database_server'];
-        if (!$sDatabaseServer) {
-            if (!$this->sDatabaseServer) {
-                $sDatabaseServer = $this->sDatabaseServer;
+
+        if (!$this->sUsername AND !empty($this->aData['login']['username'])) {
+            $this->sUsername = $this->aData['login']['username'];
+        }
+
+        if (!$this->sPassword AND !empty($this->aData['login']['password'])) {
+            $this->sPassword = $this->aData['login']['password'];
+        }
+
+        if (!$this->sDatabase AND !empty($this->aData['login']['database'])) {
+            $this->sDatabase = $this->aData['login']['database'];
+        }
+
+        if (!$this->sDatabaseServer) {
+            if (!empty($this->aData['login']['database_server'])) {
+                $this->sDatabaseServer = $this->aData['login']['database_server'];
             } else {
-                $sDatabaseServer = '127.0.0.1';
+                $this->sDatabaseServer = '127.0.0.1';
             }
         }
-        
-        $this->cGnuCash = new GnuCash($sDatabaseServer, $sDbName, $sUsername, $sPassword);
-        
+
+        $this->cGnuCash = new GnuCash($this->sDatabaseServer, $this->sDatabase, $this->sUsername, $this->sPassword);
+
         if ($this->cGnuCash->getErrorCode()) {
             $this->aReturn['message'] = "Database connection failed.<br /><b>{$this->cGnuCash->getErrorMessage()}</b>";
             $this->aReturn['error_code'] = $this->cGnuCash->getErrorCode();
             $this->done();
-        } else if (!$this->cGnuCash->getAccounts() or isset($this->aData['test_credentials'])) {
-            if (isset($this->aData['test_credentials'])) {
-                $this->aReturn['return'] = 1;
-                $this->aReturn['databases'] = $this->cGnuCash->getDatabases();
-                $this->aReturn['database'] = $this->sDatabase;
-                $this->done();
-            }
-            if (!$sDbName) {
-                $this->aReturn['message'] = 'No database specified.';   
-            } else {
-                $this->aReturn['message'] = "No accounts found, double check the database: $sDbName";
+        } else  if (isset($this->aData['test_credentials'])) {
+            $this->aReturn['return'] = 1;
+            $this->aReturn['databases'] = $this->cGnuCash->getDatabases();
+            $this->aReturn['database'] = $this->sDatabase;
+            $this->done();
+        } else if (!$this->cGnuCash->getAccounts()) {
+            $this->aReturn['message'] = 'No database specified.';
+            if ($this->sDatabase) {
+                $this->aReturn['message'] = "No accounts found, double check the database: {$this->sDatabase}";
             }
             $this->done();
         }
-        
+
         $sFunction = $this->aData['func'];
         if (method_exists($this, $sFunction)) {
             $this->$sFunction();
         }
         $this->done();
     }
-    
+
     private function done($sMessage = null) {
         if ($sMessage) {
             $this->aReturn['message'] = $sMessage;
         }
         exit(json_encode($this->aReturn));
     }
-    
+
     private function checkDatabaseLock() {
         $aLock = $this->cGnuCash->isLocked();
         if ($aLock) {
@@ -98,19 +118,18 @@ class Index {
             $this->done();
         }
     }
-    
+
     private function appCheckSettings() {
         $this->aReturn['return'] = 1;
         $this->aReturn['version'] = $this->sVersion;
         $this->aReturn['message'] = 'Settings verified.';
     }
-    
+
     private function appFetchAccounts() {
         $this->aReturn['return']  = 1;
         $this->aReturn['accounts'] = array();
-        
-        $aAccounts = $this->cGnuCash->getAccounts();
-        foreach ($aAccounts as $aAccount) {
+
+        foreach($this->cGnuCash->getSortedAccounts() as $aAccount) {
             $sPrefix = $aAccount['account_type'] . ': ';
             if (strpos($sPrefix, 'INCOME') !== false) {
                 $sPrefix = 'Income: ';
@@ -140,19 +159,19 @@ class Index {
                 'simple_name' => $aAccount['name'],
                 'count' => $aAccount['Count'],
                 'guid' => $aAccount['guid'],
-                'is_parent' => (count($this->cGnuCash->getChildAccounts($aAccount['guid'])) > 0) * 1
+                'is_parent' => FALSE,
             );
         }
     }
-    
+
     private function appGetAccountDescriptions() {
         $sAccountGUID = $this->aData['account_guid'];
         $aTransactions = $this->cGnuCash->getAccountTransactions($sAccountGUID);
-        
+
         $this->aReturn['return'] = 1;
         $this->aReturn['descriptions'] = array();
         $aDescriptions = array();
-        
+
         foreach ($aTransactions as $aTransaction) {
             $aTransactionInfo = $this->cGnuCash->getTransactionInfo($aTransaction['tx_guid']);
             foreach ($aTransactionInfo[1] as $aTransactionSplit) {
@@ -168,7 +187,7 @@ class Index {
             }
         }
     }
-    
+
     private function appCreateTransaction() {
         $this->checkDatabaseLock();
         $sDebitGUID = $this->aData['debit_guid'];
@@ -183,7 +202,7 @@ class Index {
         }
         $sMemo = $this->aData['memo'];
         if (!$sMemo) { $sMemo = ''; }
-        
+
         if (!$this->cGnuCash->GUIDExists($sDebitGUID)) {
             $this->aReturn['message'] = "GUID: $sDebitGUID does not exist for to account.";
         } else if (!$this->cGnuCash->GUIDExists($sCreditGUID)) {
@@ -203,10 +222,10 @@ class Index {
             }
         }
     }
-    
+
     private function appDeleteTransaction() {
         $sTransactionGUID = $this->aData['guid'];
-        
+
         if (!$this->cGnuCash->GUIDExists($sTransactionGUID)) {
             $this->aReturn['message'] = "GUID: $sTransactionGUID does not exist.";
         } else if (!$this->cGnuCash->deleteTransaction($sTransactionGUID)) {
@@ -216,60 +235,60 @@ class Index {
             $this->aReturn['message'] = 'Successfully deleted transaction.';
         }
     }
-    
+
     private function appGetAccountTransactions() {
         $sAccountGUID = $this->aData['guid'];
         $this->aReturn['transactions'] = array();
-        
+        $rstates = array('c' => true, 'y' => true);
+
         $aTransactions = $this->cGnuCash->getAccountTransactions($sAccountGUID);
         if ($aTransactions) {
             $this->aReturn['return'] = 1;
             foreach ($aTransactions as $aTransaction) {
                 $aDate = explode(' ', $aTransaction['post_date']);
-                $this->aReturn['transactions'][] = 
+                $this->aReturn['transactions'][] =
                     array(
                         'guid' => $aTransaction['tx_guid'],
                         'description' => $aTransaction['description'],
                         'amount' => number_format(($aTransaction['value_num'] / $aTransaction['value_denom']), 2),
                         'memo' => $aTransaction['memo'],
                         'date' => date('m-d-y', strtotime($aDate[0])),
-                        'reconciled' => $aTransaction['reconcile_state'] == 'c'
+                        'reconciled' => isset($rstates[$aTransaction['reconcile_state']]),
                     );
             }
         } else {
             $this->aReturn['message'] = 'No transactions for this account.';
         }
     }
-    
+
     private function appUpdateTransactionReconciledStatus() {
         $sTransactionGUID = $this->aData['guid'];
         $bReconciled = filter_var($this->aData['reconciled'], FILTER_VALIDATE_BOOLEAN);
-        
+
         $bSet = $this->cGnuCash->setReconciledStatus($sTransactionGUID, $bReconciled);
-        
+
         $this->aReturn['reconciled'] = !$bReconciled * 1;
-        
+
         if ($bSet) {
             $this->aReturn['return'] = 1;
         } else {
             $this->aReturn['message'] = 'Failed to update reconciled status of transaction.';
         }
     }
-    
+
     private function appGetAccountHeirarchy() {
         $aAccounts = $this->cGnuCash->getAllAccounts();
-        
+
         $aHeirarchy = array();
         function copyAccounts($cPage, $aAccount, &$aHeirarchyPointer, $aKeys) {
             if ($aAccount['name'] == 'Template Root') { return; }
             $aTransactions = $cPage->cGnuCash->getAccountTransactions($aAccount['guid']);
             $fTotal = 0;
             $bAllReconciled = true;
+            $rstates = array('c' => true, 'y' => true);
             foreach ($aTransactions as $aTransaction) {
                 $fTotal += $aTransaction['value_num'] / $aTransaction['value_denom'];
-                if ($aTransaction['reconcile_state'] != 'c') {
-                    $bAllReconciled = false;
-                }
+                $bAllReconciled = ($bAllReconciled and isset($rstates[$aTransaction['reconcile_state']]));
             }
             $aNewAccount = array(
                 'name' => $aAccount['name'],
@@ -278,7 +297,7 @@ class Index {
                 'all_transactions_reconciled' => $bAllReconciled,
                 'sub_accounts' => array()
             );
-            
+
             $aTempHeirarchy = &$aHeirarchyPointer;
             foreach ($aKeys as $sKey) {
                 $aTempHeirarchy = &$aTempHeirarchy[$sKey]['sub_accounts'];
@@ -304,19 +323,19 @@ class Index {
             }
         }
         $this->aReturn['accounts'] = $aHeirarchy;
-        
+
     }
-    
+
     public function appRenameAccount() {
         $this->aReturn['return'] = $this->cGnuCash->renameAccount($this->aData['guid'], $this->aData['new_account_name']) * 1;
     }
-    
+
     public function appDeleteAccount() {
         $aReturn = $this->cGnuCash->deleteAccount($this->aData['guid']);
         $this->aReturn['return'] = $aReturn[0] * 1;
         $this->aReturn['message'] = $aReturn[1];
     }
-    
+
     public function appCreateAccount() {
         $sName = $this->aData['name'];
         $sAccountType = $this->aData['account_type'];
@@ -324,14 +343,14 @@ class Index {
         $sParentAccountGUID = $this->aData['parent_guid'];
         $this->aReturn['return'] = $this->cGnuCash->createAccount($sName, $sAccountType, $sCommodityGUID, $sParentAccountGUID);
     }
-    
+
     public function appGetCreateAccountDialog() {
         $sAccountTypeDropdown = '<select class="ui dropdown" name="account_type">';
         foreach ($this->aAccountTypes as $sType) {
             $sAccountTypeDropdown .= '<option value="' . $sType . '">' . $sType . '</option>';
         }
         $sAccountTypeDropdown .= '</select>';
-        
+
         $aCommodities = $this->cGnuCash->getCommodities();
         $sCommodityDropdown = '<select class="ui dropdown" name="commodity_guid">';
         foreach ($aCommodities as $aCommodity) {
@@ -357,19 +376,19 @@ class Index {
         </form>
         ';
     }
-    
+
     public function appChangeAccountParent() {
         $this->aReturn['return'] = $this->cGnuCash->changeAccountParent($this->aData['guid'], $this->aData['parent_guid']) * 1;
     }
-    
+
     public function appChangeTransactionDescription() {
         $this->aReturn['return'] = $this->cGnuCash->changeTransactionDescription($this->aData['transaction_guid'], $this->aData['new_description']);
     }
-    
+
     public function appChangeTransactionAmount() {
         $this->aReturn['return'] = $this->cGnuCash->changeTransactionAmount($this->aData['transaction_guid'], $this->aData['new_amount']);
     }
-    
+
     public function appChangeTransactionDate() {
         $sDate = date('Y-m-d H:i:s', strtotime($this->aData['new_date']));
         $this->aReturn['return'] = $this->cGnuCash->changeTransactionDate($this->aData['transaction_guid'], $sDate);
@@ -377,12 +396,12 @@ class Index {
 }
 
 class GnuCash {
-    
+
     private $con;
     private $eException;
     private $sDbName;
     private $aError;
-    
+
     public function __construct($sHostname, $sDbName, $sUsername, $sPassword) {
         $this->sDbName = $sDbName;
         try {
@@ -392,14 +411,14 @@ class GnuCash {
             $this->eException = $e;
         }
     }
-    
+
     public function getErrorMessage() {
         if ($this->eException) {
             return $this->eException->getMessage();
         }
         return '';
     }
-    
+
     public function getErrorCode() {
         if ($this->eException) {
             return $this->eException->getCode();
@@ -424,10 +443,10 @@ class GnuCash {
             $this->eException = $e;
         }
     }
-    
+
     public function getNewGUID() {
         mt_srand((double)microtime() * 10000);
-        
+
         while (true) {
             $sTempGUID = strtolower(md5(uniqid(rand(), true)));
             //  Theoretically there is an extremely small chance that there are duplicates.
@@ -437,7 +456,7 @@ class GnuCash {
             }
         }
     }
-    
+
     public function GUIDExists($sGUID) {
         $this->runQuery("USE `information_schema`;");
         $aTables = $this->runQuery("SELECT * FROM `TABLES` WHERE `TABLE_SCHEMA` LIKE :dbname;",
@@ -452,24 +471,52 @@ class GnuCash {
         }
         return false;
     }
-    
+
     public function getAccountInfo($sAccountGUID) {
-        return $this->runQuery("SELECT * FROM `accounts` WHERE `guid` = :guid;",
+        return $this->runQuery("SELECT * FROM `accounts` WHERE `guid` = :guid ORDER BY code, name",
                                array(':guid' => $sAccountGUID), true);
     }
-    
+
     public function getAccounts() {
-        return $this->runQuery("SELECT * FROM `accounts`
-                                LEFT OUTER JOIN
-                                    (
-                                        SELECT `account_guid`, COUNT(`account_guid`) AS Count
-                                        FROM `splits`
-                                        GROUP BY `account_guid`
-                                    ) counts
-                                    ON `counts`.`account_guid` = `accounts`.`guid`
-                                ORDER BY Count DESC;");
+        return $this->runQuery("SELECT accounts.*, COUNT(DISTINCT splits.guid) AS Count
+                                FROM accounts
+                                    LEFT OUTER JOIN splits ON (splits.account_guid = accounts.guid)
+                                GROUP BY accounts.guid");
     }
-    
+
+    public function getSortedAccounts() {
+        $unsorted_accounts = array_column($this->getAccounts(), NULL, 'guid');
+        $sorted_accounts = array();
+        foreach($this->getSortedAccountGUIDs() as $guid) {
+            if(isset($unsorted_accounts[$guid])) {
+                $sorted_accounts[] = $unsorted_accounts[$guid];
+            }
+        }
+        return $sorted_accounts;
+    }
+    public function getSortedAccountGUIDs() {
+        $guids = array();
+        foreach(array_column($this->runQuery("SELECT guid FROM accounts WHERE parent_guid IS NULL"), 'guid') as $root_guid) {
+            $child_guids = $this->childGUIDs($root_guid);
+            if($child_guids[0] != $root_guid) {
+                $guids = array_merge($guids, $child_guids);
+            }
+        }
+        return $guids;
+    }
+
+    public function childGUIDs($sParentGUID) {
+        $child_guids = array();
+        foreach(array_column($this->runQuery("SELECT guid FROM accounts WHERE parent_guid = :parent_guid ORDER BY code, name", array(':parent_guid' => $sParentGUID)), 'guid') as $childGUID) {
+            $child_guids = array_merge($child_guids, $this->childGUIDs($childGUID));
+        }
+        if($child_guids) {
+            return $child_guids;
+        } else {
+            return array($sParentGUID);
+        }
+    }
+
     public function getAccountTransactions($sAccountGUID) {
         return $this->runQuery("SELECT `description`,
                                        `post_date`,
@@ -486,12 +533,12 @@ class GnuCash {
                                 ORDER BY `transactions`.`post_date` DESC;",
                                 array(':guid' => $sAccountGUID));
     }
-    
+
     public function getTransactionInfo($sGUID) {
         $aSplits = $this->runQuery("SELECT * FROM `splits` WHERE `tx_guid` = :guid;",
                                    array(':guid' => $sGUID));
         return array($this->getTransaction($sGUID), $aSplits);
-        
+
     }
 
     public function getTransaction($sGUID) {
@@ -503,7 +550,7 @@ class GnuCash {
         return $this->runQuery("SELECT * FROM `splits` WHERE `guid` = :guid;",
                                array(':guid' => $sGUID), true);
     }
-    
+
     public function isLocked() {
         // Bad juju to edit the database when it's locked.
         // I've done tests, and you can but the desktop client won't reflect changes that it didn't make.
@@ -514,7 +561,7 @@ class GnuCash {
         }
         return false;
     }
-    
+
     public function createTransaction($sDebitGUID, $sCreditGUID, $fAmount, $sName, $sDate, $sMemo) {
         if ($this->isLocked()) {
             return 'Database is locked';
@@ -524,11 +571,61 @@ class GnuCash {
         if (!$sTransactionGUID) {
             return 'Failed to get a new transaction GUID.';
         }
-        $aAccount = $this->getAccountInfo($sDebitGUID);
-        if (!$aAccount) {
+        $aDebbitAccount = $this->getAccountInfo($sDebitGUID);
+        if (!$aDebbitAccount) {
             return 'Failed to retrieve account for GUID: ' . $sDebitGUID . '.';
         }
-        $sCurrencyGUID = $aAccount['commodity_guid'];
+        $aCreditAccount = $this->getAccountInfo($sCreditGUID);
+        if (!$aCreditAccount) {
+            return 'Failed to retrieve account for GUID: ' . $sCreditGUID . '.';
+        }
+        if($aDebbitAccount['commodity_guid'] == $aCreditAccount['commodity_guid'])
+        {
+            $sCurrencyGUID = $aDebbitAccount['commodity_guid'];
+            $sCurrencySCU = max($aDebbitAccount['commodity_scu'], $aCreditAccount['commodity_scu']);
+            $fDebbitPrice = 1;
+            $fCreditPrice = 1;
+        }
+        else
+        {
+            $aRootAccount = $this->getAccountCommodity();
+            $sCurrencyGUID = $aRootAccount['commodity_guid'];
+            $sCurrencySCU = $aRootAccount['commodity_scu'];
+
+            if($aDebbitAccount['commodity_guid'] == $aRootAccount['commodity_guid'])
+            {
+                $fDebbitPrice = 1;
+            }
+            else
+            {
+                $aDebbitPrice = $this->getCommodityPrice($aDebbitAccount['commodity_guid'], $sCurrencyGUID, $sDate);
+                if($aDebbitPrice)
+                {
+                    $fDebbitPrice = $aDebbitPrice['value_num'] / $aDebbitPrice['value_denom'];
+                }
+                else
+                {
+                    $fDebbitPrice = 1;
+                }
+            }
+            if($aCreditAccount['commodity_guid'] == $aRootAccount['commodity_guid'])
+            {
+                $fCreditPrice = 1;
+            }
+            else
+            {
+                $aCreditPrice = $this->getCommodityPrice($aCreditAccount['commodity_guid'], $sCurrencyGUID, $sDate);
+                if($aCreditPrice)
+                {
+                    $fCreditPrice = $aCreditPrice['value_num'] / $aCreditPrice['value_denom'];
+                }
+                else
+                {
+                    $fCreditPrice = 1;
+                }
+            }
+        }
+
         if (!$sCurrencyGUID) {
             return 'Currency GUID is empty.';
         }
@@ -542,7 +639,7 @@ class GnuCash {
         }
         // Time may change during the execution of this function.
         $sEnterDate = date('Y-m-d H:i:s', time());
-        
+
         $this->runQuery("INSERT INTO `transactions` (`guid`, `currency_guid`, `num`, `post_date`, `enter_date`, `description`) VALUES (:guid, :currency_guid, :num, :post_date, :enter_date, :description);",
                         array(':guid' => $sTransactionGUID, ':currency_guid' => $sCurrencyGUID, ':num' => '',
                               ':post_date' => $sDate, ':enter_date' => $sEnterDate, ':description' => $sName));
@@ -551,18 +648,18 @@ class GnuCash {
         $this->runQuery("INSERT INTO `splits` (`guid`, `tx_guid`, `account_guid`, `memo`, `action`, `reconcile_state`, `reconcile_date`, `value_num`, `value_denom`, `quantity_num`, `quantity_denom`) VALUES (:guid, :tx_guid, :account_guid, :memo, :action, :reconcile_state, :reconcile_date, :value_num, :value_denom, :quantity_num, :quantity_denom);",
                         array(':guid' => $sSplitDebitGUID, ':tx_guid' => $sTransactionGUID, ':account_guid' => $sDebitGUID,
                               ':memo' => $sMemo, ':reconcile_state' => 'n', ':reconcile_date' => null, ':action' => '',
-                              ':value_num' => intval($fAmount * 100), ':value_denom' => 100,
-                              ':quantity_num' => intval($fAmount * 100), ':quantity_denom' => 100));
+                              ':value_num' => round($fAmount * $sCurrencySCU), ':value_denom' => $sCurrencySCU,
+                              ':quantity_num' => round($fAmount * $aDebbitAccount['commodity_scu'] / $fDebbitPrice), ':quantity_denom' => $aDebbitAccount['commodity_scu']));
         $sDebitMessage = $this->eException->getMessage();
         $aSplitDebit = $this->getSplit($sSplitDebitGUID);
         $this->runQuery("INSERT INTO `splits` (`guid`, `tx_guid`, `account_guid`, `memo`, `action`, `reconcile_state`, `reconcile_date`, `value_num`, `value_denom`, `quantity_num`, `quantity_denom`) VALUES (:guid, :tx_guid, :account_guid, :memo, :action, :reconcile_state, :reconcile_date, :value_num, :value_denom, :quantity_num, :quantity_denom);",
                         array(':guid' => $sSplitCreditGUID, ':tx_guid' => $sTransactionGUID, ':account_guid' => $sCreditGUID,
                               ':memo' => '', ':reconcile_state' => 'n', ':reconcile_date' => null, ':action' => '',
-                              ':value_num' => -1 * intval($fAmount * 100), ':value_denom' => 100,
-                              ':quantity_num' => -1 * intval($fAmount * 100), ':quantity_denom' => 100));
+                              ':value_num' => -1 * round($fAmount * $sCurrencySCU), ':value_denom' => $sCurrencySCU,
+                              ':quantity_num' => -1 * round($fAmount * $aCreditAccount['commodity_scu'] / $fCreditPrice), ':quantity_denom' => $aCreditAccount['commodity_scu']));
         $sCreditMessage = $this->eException->getMessage();
         $aSplitCredit = $this->getSplit($sSplitCreditGUID);
-        
+
         if ($aTransaction and $aSplitDebit and $aSplitCredit) {
             return '';
         }
@@ -583,7 +680,7 @@ class GnuCash {
         }
         return 'Some other error.';
     }
-    
+
     public function deleteTransaction($sTransactionGUID) {
         if ($this->isLocked()) {
             return false;
@@ -592,7 +689,7 @@ class GnuCash {
                         array(':guid' => $sTransactionGUID));
         $this->runQuery("DELETE FROM `splits` WHERE `tx_guid` = :guid;",
                         array(':guid' => $sTransactionGUID));
-        
+
         // Verify entries were deleted.
         $aTransaction = $this->getTransactionInfo($sTransactionGUID);
         if ($aTransaction[0] or $aTransaction[1]) {
@@ -600,7 +697,7 @@ class GnuCash {
         }
         return true;
     }
-    
+
     public function setReconciledStatus($sTransactionGUID, $bReconciled) {
         $sReconciled = ($bReconciled ? 'n' : 'c');
         $this->runQuery("UPDATE `splits` SET `reconcile_state` = :reconcile_state WHERE `tx_guid` = :tx_guid;",
@@ -615,16 +712,16 @@ class GnuCash {
         }
         return $bSet;
     }
-    
+
     public function getAllAccounts() {
-        return $this->runQuery("SELECT * FROM `accounts`;");
+        return $this->runQuery("SELECT * FROM `accounts` ORDER BY code, name");
     }
-    
+
     public function getChildAccounts($sParentGUID) {
-        return $this->runQuery("SELECT * FROM `accounts` WHERE `parent_guid` = :parent_guid;",
+        return $this->runQuery("SELECT * FROM `accounts` WHERE `parent_guid` = :parent_guid ORDER BY code, name",
                                array(':parent_guid' => $sParentGUID));
     }
-    
+
     public function renameAccount($sAccountGUID, $sNewAccountName) {
         $this->runQuery("UPDATE `accounts` SET `name` = :name WHERE `guid` = :guid;",
                         array(':name' => $sNewAccountName, ':guid' => $sAccountGUID));
@@ -632,7 +729,7 @@ class GnuCash {
                                     array(':guid' => $sAccountGUID), true);
         return ($sNewAccountName == $aAccount['name']);
     }
-    
+
     public function deleteAccount($sAccountGUID) {
         $aChildAccounts = $this->getChildAccounts($sAccountGUID);
         if ($aChildAccounts) {
@@ -651,7 +748,7 @@ class GnuCash {
         return array(1, '');
         // TODO: Delete scheduled transactions and other entries that reference this account guid.
     }
-    
+
     public function createAccount($sName, $sAccountType, $sCommodityGUID, $sParentAccountGUID) {
         $aAccountExists = $this->runQuery("SELECT * FROM `accounts` WHERE `parent_guid` = :parent_guid AND `account_name` = :account_name AND `type` = :type;",
                                           array(':parent_guid' => $sParentAccountGUID, ':name' => $sName, ':account_type' => $sAccountType));
@@ -669,18 +766,36 @@ class GnuCash {
         $aNewAccount = $this->getAccountInfo($sAccountGUID);
         return !empty($aNewAccount);
     }
-    
+
     public function getCommodities() {
         return $this->runQuery("SELECT * FROM `commodities`;");
     }
-    
+
+    public function getAccountCommodity($sAccountGUID = null) {
+        // get commodity for given account
+        if($sAccountGUID) {
+           return $this->runQuery("SELECT commodity_guid, commodity_scu FROM accounts  WHERE guid = :guid", array(':guid' => $sAccountGUID), true);
+        // get commodity for root account
+        } else {
+           return $this->runQuery("SELECT accounts.commodity_guid, accounts.commodity_scu FROM slots INNER JOIN books ON (books.guid = slots.obj_guid) INNER JOIN accounts ON (accounts.guid = books.root_account_guid) WHERE slots.name LIKE 'options'", null, true);
+        }
+    }
+
+    public function getCommodityPrice($sCommodityGUID, $sCurrencyGUID, $sDate) {
+        if($sDate) {
+           return $this->runQuery("SELECT value_num, value_denom FROM prices WHERE commodity_guid = :commodity_guid AND currency_guid = :currency_guid ORDER BY ABS(UNIX_TIMESTAMP(:date) - UNIX_TIMESTAMP(NOW())) LIMIT 1", array(':commodity_guid' => $sCommodityGUID, 'currency_guid' => $sCurrencyGUID, ':date' => $sDate), true);
+        } else {
+           return $this->runQuery("SELECT value_num, value_denom FROM prices WHERE commodity_guid = :commodity_guid AND currency_guid = :currency_guid ORDER BY ABS(UNIX_TIMESTAMP(date) - UNIX_TIMESTAMP(NOW())) LIMIT 1", array(':commodity_guid' => $sCommodityGUID, 'currency_guid' => $sCurrencyGUID), true);
+        }
+    }
+
     public function changeAccountParent($sAccountGUID, $sParentAccountGUID) {
         $this->runQuery("UPDATE `accounts` SET `parent_guid` = :parent_guid WHERE `guid` = :guid;",
                         array(':parent_guid' => $sParentAccountGUID, ':guid' => $sAccountGUID));
         $aAccount = $this->getAccountInfo($sAccountGUID);
         return ($aAccount['parent_guid'] == $sParentAccountGUID);
     }
-    
+
     public function changeTransactionDescription($sTransactionGUID, $sNewDescription) {
         $this->runQuery("UPDATE `transactions` SET `description` = :description WHERE `guid` = :guid;",
                         array(':description' => $sNewDescription, ':guid' => $sTransactionGUID));
@@ -688,7 +803,7 @@ class GnuCash {
                                             array(':guid' => $sTransactionGUID), true);
         return ($aTransactionInfo['description'] == $sNewDescription);
     }
-    
+
     public function changeTransactionAmount($sTransactionGUID, $sNewAmount) {
         // TODO: How to calculate the value/quantity based on value/quantity denominators.
         $this->runQuery("UPDATE `splits` SET `value_num` = :value_num, `quantity_num` = :quantity_num WHERE `tx_guid` = :tx_guid AND `value_num` < 0;",
@@ -699,7 +814,7 @@ class GnuCash {
         // TODO: Verify.
         return true;
     }
-    
+
     public function changeTransactionDate($sTransactionGUID, $sNewDate) {
         $this->runQuery("UPDATE `transactions` SET `post_date` = :post_date, `enter_date` = :enter_date WHERE `guid` = :guid;",
                         array(':post_date' => $sNewDate, ':enter_date' => $sNewDate, ':guid' => $sTransactionGUID));
@@ -710,7 +825,7 @@ class GnuCash {
         $oEnterDate = new DateTime($aTransaction['enter_date']);
         return ($oNewDate == $oPostDate) and ($oNewDate == $oEnterDate);
     }
-    
+
     public function getDatabases() {
         $aDatabases = $this->runQuery('SHOW DATABASES;');
         $aReturn = [];
@@ -725,5 +840,3 @@ class GnuCash {
 }
 
 new Index();
-
-?>
