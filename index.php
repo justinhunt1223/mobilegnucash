@@ -571,11 +571,61 @@ class GnuCash {
         if (!$sTransactionGUID) {
             return 'Failed to get a new transaction GUID.';
         }
-        $aAccount = $this->getAccountInfo($sDebitGUID);
-        if (!$aAccount) {
+        $aDebbitAccount = $this->getAccountInfo($sDebitGUID);
+        if (!$aDebbitAccount) {
             return 'Failed to retrieve account for GUID: ' . $sDebitGUID . '.';
         }
-        $sCurrencyGUID = $aAccount['commodity_guid'];
+        $aCreditAccount = $this->getAccountInfo($sCreditGUID);
+        if (!$aCreditAccount) {
+            return 'Failed to retrieve account for GUID: ' . $sCreditGUID . '.';
+        }
+        if($aDebbitAccount['commodity_guid'] == $aCreditAccount['commodity_guid'])
+        {
+            $sCurrencyGUID = $aDebbitAccount['commodity_guid'];
+            $sCurrencySCU = max($aDebbitAccount['commodity_scu'], $aCreditAccount['commodity_scu']);
+            $fDebbitPrice = 1;
+            $fCreditPrice = 1;
+        }
+        else
+        {
+            $aRootAccount = $this->getAccountCommodity();
+            $sCurrencyGUID = $aRootAccount['commodity_guid'];
+            $sCurrencySCU = $aRootAccount['commodity_scu'];
+
+            if($aDebbitAccount['commodity_guid'] == $aRootAccount['commodity_guid'])
+            {
+                $fDebbitPrice = 1;
+            }
+            else
+            {
+                $aDebbitPrice = $this->getCommodityPrice($aDebbitAccount['commodity_guid'], $sCurrencyGUID, $sDate);
+                if($aDebbitPrice)
+                {
+                    $fDebbitPrice = $aDebbitPrice['value_num'] / $aDebbitPrice['value_denom'];
+                }
+                else
+                {
+                    $fDebbitPrice = 1;
+                }
+            }
+            if($aCreditAccount['commodity_guid'] == $aRootAccount['commodity_guid'])
+            {
+                $fCreditPrice = 1;
+            }
+            else
+            {
+                $aCreditPrice = $this->getCommodityPrice($aCreditAccount['commodity_guid'], $sCurrencyGUID, $sDate);
+                if($aCreditPrice)
+                {
+                    $fCreditPrice = $aCreditPrice['value_num'] / $aCreditPrice['value_denom'];
+                }
+                else
+                {
+                    $fCreditPrice = 1;
+                }
+            }
+        }
+
         if (!$sCurrencyGUID) {
             return 'Currency GUID is empty.';
         }
@@ -598,15 +648,15 @@ class GnuCash {
         $this->runQuery("INSERT INTO `splits` (`guid`, `tx_guid`, `account_guid`, `memo`, `action`, `reconcile_state`, `reconcile_date`, `value_num`, `value_denom`, `quantity_num`, `quantity_denom`) VALUES (:guid, :tx_guid, :account_guid, :memo, :action, :reconcile_state, :reconcile_date, :value_num, :value_denom, :quantity_num, :quantity_denom);",
                         array(':guid' => $sSplitDebitGUID, ':tx_guid' => $sTransactionGUID, ':account_guid' => $sDebitGUID,
                               ':memo' => $sMemo, ':reconcile_state' => 'n', ':reconcile_date' => null, ':action' => '',
-                              ':value_num' => round($fAmount * 100), ':value_denom' => 100,
-                              ':quantity_num' => round($fAmount * 100), ':quantity_denom' => 100));
+                              ':value_num' => round($fAmount * $sCurrencySCU), ':value_denom' => $sCurrencySCU,
+                              ':quantity_num' => round($fAmount * $aDebbitAccount['commodity_scu'] / $fDebbitPrice), ':quantity_denom' => $aDebbitAccount['commodity_scu']));
         $sDebitMessage = $this->eException->getMessage();
         $aSplitDebit = $this->getSplit($sSplitDebitGUID);
         $this->runQuery("INSERT INTO `splits` (`guid`, `tx_guid`, `account_guid`, `memo`, `action`, `reconcile_state`, `reconcile_date`, `value_num`, `value_denom`, `quantity_num`, `quantity_denom`) VALUES (:guid, :tx_guid, :account_guid, :memo, :action, :reconcile_state, :reconcile_date, :value_num, :value_denom, :quantity_num, :quantity_denom);",
                         array(':guid' => $sSplitCreditGUID, ':tx_guid' => $sTransactionGUID, ':account_guid' => $sCreditGUID,
                               ':memo' => '', ':reconcile_state' => 'n', ':reconcile_date' => null, ':action' => '',
-                              ':value_num' => -1 * round($fAmount * 100), ':value_denom' => 100,
-                              ':quantity_num' => -1 * round($fAmount * 100), ':quantity_denom' => 100));
+                              ':value_num' => -1 * round($fAmount * $sCurrencySCU), ':value_denom' => $sCurrencySCU,
+                              ':quantity_num' => -1 * round($fAmount * $aCreditAccount['commodity_scu'] / $fCreditPrice), ':quantity_denom' => $aCreditAccount['commodity_scu']));
         $sCreditMessage = $this->eException->getMessage();
         $aSplitCredit = $this->getSplit($sSplitCreditGUID);
 
@@ -719,6 +769,24 @@ class GnuCash {
 
     public function getCommodities() {
         return $this->runQuery("SELECT * FROM `commodities`;");
+    }
+
+    public function getAccountCommodity($sAccountGUID = null) {
+        // get commodity for given account
+        if($sAccountGUID) {
+           return $this->runQuery("SELECT commodity_guid, commodity_scu FROM accounts  WHERE guid = :guid", array(':guid' => $sAccountGUID), true);
+        // get commodity for root account
+        } else {
+           return $this->runQuery("SELECT accounts.commodity_guid, accounts.commodity_scu FROM slots INNER JOIN books ON (books.guid = slots.obj_guid) INNER JOIN accounts ON (accounts.guid = books.root_account_guid) WHERE slots.name LIKE 'options'", null, true);
+        }
+    }
+
+    public function getCommodityPrice($sCommodityGUID, $sCurrencyGUID, $sDate) {
+        if($sDate) {
+           return $this->runQuery("SELECT value_num, value_denom FROM prices WHERE commodity_guid = :commodity_guid AND currency_guid = :currency_guid ORDER BY ABS(UNIX_TIMESTAMP(:date) - UNIX_TIMESTAMP(NOW())) LIMIT 1", array(':commodity_guid' => $sCommodityGUID, 'currency_guid' => $sCurrencyGUID, ':date' => $sDate), true);
+        } else {
+           return $this->runQuery("SELECT value_num, value_denom FROM prices WHERE commodity_guid = :commodity_guid AND currency_guid = :currency_guid ORDER BY ABS(UNIX_TIMESTAMP(date) - UNIX_TIMESTAMP(NOW())) LIMIT 1", array(':commodity_guid' => $sCommodityGUID, 'currency_guid' => $sCurrencyGUID), true);
+        }
     }
 
     public function changeAccountParent($sAccountGUID, $sParentAccountGUID) {
