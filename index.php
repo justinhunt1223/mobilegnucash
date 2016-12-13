@@ -230,7 +230,7 @@ class Index {
                     array(
                         'guid' => $aTransaction['tx_guid'],
                         'description' => $aTransaction['description'],
-                        'amount' => number_format(($aTransaction['value_num'] / $aTransaction['value_denom']), 2),
+                        'amount' => round(($aTransaction['value_num'] / $aTransaction['value_denom']), 2),
                         'memo' => $aTransaction['memo'],
                         'date' => date('m-d-y', strtotime($aDate[0])),
                         'reconciled' => $aTransaction['reconcile_state'] == 'c'
@@ -467,6 +467,7 @@ class GnuCash {
                                         GROUP BY `account_guid`
                                     ) counts
                                     ON `counts`.`account_guid` = `accounts`.`guid`
+                                    WHERE `hidden` = 0
                                 ORDER BY Count DESC;");
     }
     
@@ -621,7 +622,7 @@ class GnuCash {
     }
     
     public function getChildAccounts($sParentGUID) {
-        return $this->runQuery("SELECT * FROM `accounts` WHERE `parent_guid` = :parent_guid;",
+        return $this->runQuery("SELECT * FROM `accounts` WHERE `parent_guid` = :parent_guid and `hidden` = 0;",
                                array(':parent_guid' => $sParentGUID));
     }
     
