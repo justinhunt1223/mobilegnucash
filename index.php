@@ -230,7 +230,7 @@ class Index {
                     array(
                         'guid' => $aTransaction['tx_guid'],
                         'description' => $aTransaction['description'],
-                        'amount' => round(($aTransaction['value_num'] / $aTransaction['value_denom']), 2),
+                        'amount' => number_format(round(($aTransaction['value_num'] / $aTransaction['value_denom']), 2), 2),
                         'memo' => $aTransaction['memo'],
                         'date' => date('m-d-y', strtotime($aDate[0])),
                         'reconciled' => $aTransaction['reconcile_state'] == 'c'
